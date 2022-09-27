@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: websocket-chatroom
+  mvc:
+    view:
+      suffix: .html
+      prefix: /html/
+server:
+  port: 8080

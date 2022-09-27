@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>index</title>
+</head>
+
+<body>
+<!--头-->
+<div style="display: flex; justify-content: center">
+    <div style="width: 904px; height: 50px; border: 1px solid gray; border-radius: 5px 5px 0 0">
+        <div id="userInfo" style="height: 30px"></div>
+        <div id="toUserInfo" style="height: 20px;display: flex;justify-content: center"></div>
+    </div>
+</div>
+<!--框-->
+<div style="display: flex; justify-content: center">
+    <div style="width: 904px; height: 604px; border: 1px solid gray; border-radius: 0 0 5px 5px">
+        <!--聊天区-->
+        <div id="chat_k" style="visibility: hidden; width: 600px; height: 602px; border: 1px solid gray; border-radius: 0 0 0 5px; float: left">
+            <div id="chatting" style="width: 600px; height: 400px; border: 1px solid gray;">
+
+            </div>
+            <div style="width: 600px; height: 200px; border: 1px solid gray;">
+                <textarea id="chat_msg" placeholder="请输入你要发送的消息..." style="width: 594px;height: 163px"></textarea>
+                <button id="submit_msg" style="float: right">发送</button>
+            </div>
+        </div>
+        <!--好友列表-->
+        <div style="width: 300px; height: 300px; border: 1px solid gray; float: right">
+            <span>好友列表</span>
+            <ul id="hyList" style="overflow: auto">
+            </ul>
+        </div>
+        <!--系统消息-->
+        <div style="width: 300px; height: 300px; border: 1px solid gray; border-radius: 0 0 5px 0; float: right">
+            <span>系统消息</span>
+            <ul id="xtList" style="overflow: auto">
+            </ul>
+        </div>
+    </div>
+</div>
+
+</body>
+
+<script src="/js/jquery-3.6.1.min.js"></script>
+<script type="text/javascript">
+    var toName = '';
+    var username = '';
+
+    // 展示聊天区
+    function showChat(chatName){
+        toName = chatName;
+        $("#toUserInfo").html("<span>正在和 "+chatName+" 聊天</span>");
+        $("#chat_k").css("visibility","visible");
+
+        //从sessionStorage中获取历史信息
+        let chatData = sessionStorage.getItem(toName);
+        if (chatData != null){
+            $("#chatting").html(chatData);
+        }else {
+            $("#chatting").html("");
+        }
+    }
+
+    // page init load
+    $(function (){
+        // get username
+        $.ajax({
+            url:"getUsername",
+            success:function (res) {
+                username = res;
+            },
+            async:false //同步请求，只有上面好了才会接着下面
+        });
+
+        //建立websocket连接
+        //获取host解决后端获取httpsession的空指针异常
+        var host = window.location.host;
+        var ws = new WebSocket("ws://"+host+"/chat");
+        ws.onopen = function (evt) {
+            $("#userInfo").html("用户："+username+"<span style='float: right;color: green'>-在线</span>");
+        }
+
+        //接受消息
+        ws.onmessage = function (evt) {
+            //获取服务端推送的消息
+            let dataStr = evt.data;
+            //将dataStr转换为json对象
+            let res = JSON.parse(dataStr);
+            console.log(res);
+            //判断是否是系统消息
+            if(res.system){
+                // 系统消息
+                //1.好友列表展示
+                let hyMsg = '';
+                //2.系统广播的展示
+                let xtMsg = '';
+                for(let name of res.message){
+                    if (name != username){
+                        hyMsg += "<li><a onclick='showChat(\"" + name + "\")'>" + name + "</a></li>";
+                        xtMsg += "<li>你的好友 "+name+" 上线了</li>";
+                    }
+                }
+                // 渲染
+                $("#hyList").html(hyMsg);
+                $("#xtList").html(xtMsg);
+            }else {
+                //不是系统消息
+                let str = "<span style='border:1px solid grey; border-radius: 3px; float: left'>&emsp;"+ res.message +"&emsp;</span></br>";
+                if (toName === res.fromName) {
+                    $("#chatting").append(str);
+                }
+                var chatData = sessionStorage.getItem(res.fromName);
+                if (chatData != null){
+                    str = chatData + str;
+                }
+                //保存聊天消息
+                sessionStorage.setItem(res.fromName,str);
+            };
+        }
+
+        ws.onclose = function () {
+            $("#userInfo").html("<span style='float: right;color: red'>-离线</span>");
+        }
+
+        //发送消息
+        $("#submit_msg").click(function () {
+            //1.获取输入的内容
+            let data = $("#chat_msg").val();
+            //2.清空发送框
+            $("#chat_msg").val("");
+            let json = {"toName": toName ,"message": data};
+            //将数据展示在聊天区
+            let str = "<span style='border:1px solid grey; border-radius: 3px; float: right'>&emsp;"+ data +"&emsp;</span></br>";
+            $("#chatting").append(str);
+
+            let chatData = sessionStorage.getItem(toName);
+            if (chatData != null){
+                str = chatData + str;
+            }
+            sessionStorage.setItem(toName,str);
+            //3.发送数据
+            ws.send(JSON.stringify(json));
+        })
+    })
+
+</script>
+
+</html>
